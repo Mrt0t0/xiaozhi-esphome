@@ -1,7 +1,8 @@
 substitutions:
-  name: esphome-web-0bac48
-  friendly_name: "Xiaozhi Ball V2"
+  name: esphome-web-cd70b8
+  friendly_name: "Xiao"
 
+## Mrtoto : Add led Action light script + Add Home assistant + Chouchou microwakeword + Reduce battery update rate
 ## v1.07 26-jul-2025 #############################################################################################################################
 ## changed how to play startup sound to avoid double triggering
 ## v1.06 19-jul-2025 #############################################################################################################################
@@ -19,12 +20,12 @@ substitutions:
 
 ## SETTINGS ######################################################################################################################################
 
-  imagemodel: "Eyes2" # (options are: Alfred,Astrobot,Buzz,Casita,Cybergirl,Dory,EVE,Eyes,Eyes2,GLaDOS,Girl1,Guy1,Guy2,Gwen,Harley,Jarvis,Luffy,Mario,Max,Prime,Robochibi,Robocop,Robot,Robotgirl,Shaun)
+  imagemodel: "EVE" # (options are: Alfred,Astrobot,Buzz,Casita,Cybergirl,Dory,EVE,Eyes,Eyes2,GLaDOS,Girl1,Guy1,Guy2,Gwen,Harley,Jarvis,Luffy,Mario,Max,Prime,Robochibi,Robocop,Robot,Robotgirl,Shaun)
   startup_sound: "Home_Connected" # (options are: available,Home_Connected)
 
   imagewidth: "240" # GC9A01A (Ball v2 & Muma & Puck) "240"
   imageheight: "240" # GC9A01A (Ball v2 & Muma & Puck) "240"
-  displaymodel: "GC9A01A" # GC9A01A (Ball v2 & Puck) or ST7789V (Muma)
+  displaymodel: "ST7789V" # GC9A01A (Ball v2 & Puck) or ST7789V (Muma)
   invertcolors: "true" # GC9A01A/ST7789V (Ball v2 & Muma & Puck) "true"
 
 ##################################################################################################################################################
@@ -93,7 +94,7 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2025.5.0
+  min_version: 2025.7.0
   name_add_mac_suffix: false
   on_boot:
     priority: 600
@@ -115,6 +116,7 @@ esp32:
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
+    version: recommended
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
@@ -145,11 +147,11 @@ logger:
   hardware_uart: USB_SERIAL_JTAG
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ssid: !wifiname
+  password: !wifipassword
   ap:
-    ssid: "Ball v2 Hotspot"
-    password: "RZ7D3EzJdPM6"
+    ssid: "Xiao"
+    password: "xiaoxiao1234"
   on_connect:
     - script.execute: draw_display
   on_disconnect:
@@ -169,7 +171,7 @@ sensor:
     id: battery_voltage
     attenuation: 12db
     accuracy_decimals: 2
-    update_interval: 1s
+    update_interval: 10s
     unit_of_measurement: "V"
     icon: mdi:battery-medium
     filters:
@@ -223,6 +225,7 @@ touchscreen:
     i2c_id: bus_b
     interrupt_pin: ${touch_input_pin}
     reset_pin: ${touch_reset_pin}
+    skip_probe: true
     id: touch_dp
     on_touch:
       then:
@@ -446,6 +449,8 @@ micro_wake_word:
     - okay_nabu
     - hey_jarvis
     - alexa
+    - model: "https://raw.githubusercontent.com/esphome/micro-wake-word-models/refs/heads/main/models/v2/experiments/hey_home_assistant.json"
+    - model: "https://raw.githubusercontent.com/esphome/micro-wake-word-models/refs/heads/main/models/v2/experiments/choo_choo_homie.json"
   on_wake_word_detected:
     - if:
         condition:
@@ -455,7 +460,14 @@ micro_wake_word:
               id: play_sound
               priority: true
               sound_file: !lambda return id(wake_word_triggered_sound);
-          - delay: 300ms
+    - light.turn_on:
+        id: led
+        brightness: 100%
+        red: 0.0
+        green: 1.0
+        blue: 0.0
+    - delay: 500ms  # durées plus longues possibles
+    - light.turn_off: led
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
 
@@ -464,9 +476,9 @@ voice_assistant:
   microphone: i2s_mics
   media_player: external_media_player
   micro_wake_word: mww
-  noise_suppression_level: 2
+  noise_suppression_level: 3
   auto_gain: 31dBFS
-  volume_multiplier: 2.0
+  volume_multiplier: 3.0
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_phase_id};
     - text_sensor.template.publish:
@@ -476,6 +488,7 @@ voice_assistant:
         id: text_response
         state: "..."
     - script.execute: draw_display
+    - script.execute: led_pulse_blue
   on_stt_vad_end:
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
     - script.execute: draw_display
@@ -490,6 +503,7 @@ voice_assistant:
         state: !lambda return x;
     - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
     - script.execute: draw_display
+    - script.execute: led_pulse_yellow
   on_end:
     - wait_until:
         condition:
@@ -509,6 +523,7 @@ voice_assistant:
           - micro_wake_word.start:
     - script.execute: set_idle_or_mute_phase
     - script.execute: draw_display
+    - script.execute: led_off
     - text_sensor.template.publish:
         id: text_request
         state: ""
@@ -531,6 +546,7 @@ voice_assistant:
               else:
                 - lambda: id(voice_assistant_phase) = ${voice_assist_muted_phase_id};
           - script.execute: draw_display
+          - script.execute: led_off
   on_client_connected:
     - lambda: id(init_in_progress) = false;
     - script.execute: start_wake_word
@@ -556,6 +572,30 @@ voice_assistant:
     - script.execute: draw_display
 
 script:
+  - id: led_pulse_blue      # STT = écoute/microphone
+    mode: restart
+    then:
+      - light.turn_on:
+          id: led
+          effect: "Slow Pulse"
+          red: 0.0
+          green: 0.2
+          blue: 1.0
+
+  - id: led_pulse_yellow    # TTS = synthèse vocale
+    mode: restart
+    then:
+      - light.turn_on:
+          id: led
+          effect: "Fast Pulse"
+          red: 1.0
+          green: 1.0
+          blue: 0.0
+
+  - id: led_off
+    then:
+      - light.turn_off: led
+
   - id: draw_display
     then:
       - if:
