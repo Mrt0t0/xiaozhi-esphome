@@ -1,7 +1,8 @@
 substitutions:
-  name: esphome-web-cd70b8
+  name: esphome-web-cd77b8
   friendly_name: "Xiao"
 
+## Mrtoto : Add sleep screen mode 5min auto
 ## Mrtoto : Add led Action light script + Add Home assistant + Chouchou microwakeword + Reduce battery update rate
 ## v1.07 26-jul-2025 #############################################################################################################################
 ## changed how to play startup sound to avoid double triggering
@@ -99,10 +100,12 @@ esphome:
   on_boot:
     priority: 600
     then:
+      - script.execute: start_sleep_timer
+      - delay: 2s
       - script.execute: draw_display
       - component.update: battery_voltage
       - component.update: battery_percentage
-      - delay: 30s
+      - delay: 2s
       - if:
           condition:
             lambda: return id(init_in_progress);
@@ -151,7 +154,7 @@ wifi:
   password: !wifipassword
   ap:
     ssid: "Xiao"
-    password: "xiaoxiao1234"
+    password: "marcel123"
   on_connect:
     - script.execute: draw_display
   on_disconnect:
@@ -229,6 +232,7 @@ touchscreen:
     id: touch_dp
     on_touch:
       then:
+        - script.execute: reset_sleep_timer
         - binary_sensor.template.publish:
             id: touch_input
             state: ON
@@ -248,6 +252,7 @@ binary_sensor:
           - ON for 40ms to 400ms
           - OFF for at least 330ms
         then:
+          - script.execute: reset_sleep_timer
           - if:
               condition:
                 switch.is_on: timer_ringing
@@ -456,6 +461,7 @@ micro_wake_word:
         condition:
           switch.is_on: wake_sound
         then:
+          - script.execute: reset_sleep_timer
           - script.execute:
               id: play_sound
               priority: true
@@ -572,6 +578,22 @@ voice_assistant:
     - script.execute: draw_display
 
 script:
+  - id: reset_sleep_timer
+    then:
+      - script.stop: start_sleep_timer
+      - script.execute: start_sleep_timer
+
+  - id: start_sleep_timer
+    mode: restart
+    then:
+      - delay: 5min       # Timing before sleep
+      - script.execute: go_to_sleep
+
+  - id: go_to_sleep
+    then:
+      - light.turn_off: Sled
+      - logger.log: "Mise en veille de l'écran"
+
   - id: led_pulse_blue      # STT = écoute/microphone
     mode: restart
     then:
@@ -602,6 +624,7 @@ script:
           condition:
             lambda: return !id(init_in_progress);
           then:
+            - light.turn_on: Sled
             - if:
                 condition:
                   wifi.connected:
