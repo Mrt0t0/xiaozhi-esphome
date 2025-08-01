@@ -2,6 +2,7 @@ substitutions:
   name: esphome-web-cd77b8
   friendly_name: "Xiao"
 
+## Mrtoto v1.11 : Battery update bug + menu Battery Home assistant selector
 ## Mrtoto v1.10 : Battery indicator phone style top right corner
 ## Mrtoto v1.09 : Add sleep mode 5min
 ## Mrtoto v1.08 : Add led Action light script + Add Home assistant + Chouchou microwakeword + Reduce battery update rate
@@ -153,7 +154,14 @@ logger:
 
 wifi:
   ssid: !wifiname
-  password: !wifipassword
+  password: !wifipass
+  ap:
+    ssid: "Xiao"
+    password: "marcel123"
+  on_connect:
+    - script.execute: draw_display
+  on_disconnect:
+    - script.execute: draw_display
 
 captive_portal:
 
@@ -167,9 +175,9 @@ sensor:
     pin: GPIO${battery_adc_pin}
     name: "Battery Voltage"
     id: battery_voltage
-    attenuation: auto
+    attenuation: 12db
     accuracy_decimals: 2
-    update_interval: 10s
+    update_interval: 60s
     unit_of_measurement: "V"
     icon: mdi:battery-medium
     filters:
@@ -182,32 +190,32 @@ sensor:
     on_value:
       then:
         - component.update: battery_percentage
-      
+
   - platform: template
     id: battery_percentage
     name: "Battery Percentage"
-    lambda: return id(battery_voltage).state;
-    accuracy_decimals: 0
     unit_of_measurement: "%"
     icon: mdi:battery-medium
+    accuracy_decimals: 0
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      if (voltage >= 4.20) return 100;
+      else if (voltage >= 4.00) return 90;
+      else if (voltage >= 3.90) return 80;
+      else if (voltage >= 3.80) return 70;
+      else if (voltage >= 3.75) return 60;
+      else if (voltage >= 3.70) return 50;
+      else if (voltage >= 3.60) return 40;
+      else if (voltage >= 3.45) return 30;
+      else if (voltage >= 3.30) return 20;
+      else if (voltage >= 3.10) return 10;
+      else if (voltage >= 2.80) return 0;
+      else return 0;
+    update_interval: 60s
     filters:
-      - calibrate_linear:
-         method: exact
-         datapoints:
-          - 2.80 -> 0.0
-          - 3.10 -> 10.0
-          - 3.30 -> 20.0
-          - 3.45 -> 30.0
-          - 3.60 -> 40.0
-          - 3.70 -> 50.0
-          - 3.75 -> 60.0
-          - 3.80 -> 70.0
-          - 3.90 -> 80.0
-          - 4.00 -> 90.0
-          - 4.20 -> 100.0
       - lambda: |-
-          if (x > 100) return 100;
           if (x < 0) return 0;
+          if (x > 100) return 100;
           return x;
     on_value:
       then:
@@ -216,6 +224,7 @@ sensor:
             if (current != id(last_battery_percent)) {
               id(last_battery_percent) = current;
               id(draw_display).execute();
+              id(reset_sleep_timer).execute();
             }
 
 touchscreen:
@@ -477,9 +486,9 @@ voice_assistant:
   microphone: i2s_mics
   media_player: external_media_player
   micro_wake_word: mww
-  noise_suppression_level: 3
+  noise_suppression_level: 4
   auto_gain: 31dBFS
-  volume_multiplier: 3.0
+  volume_multiplier: 4.0
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_phase_id};
     - text_sensor.template.publish:
@@ -587,7 +596,7 @@ script:
   - id: go_to_sleep
     then:
       - light.turn_off: Sled
-      - logger.log: "Mise en veille de l'écran"
+      - logger.log: "Screen off"
 
   - id: led_pulse_blue      # STT = écoute/microphone
     mode: restart
@@ -1141,7 +1150,7 @@ display:
         lambda: |-
           it.fill(id(idle_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_idle), ImageAlign::CENTER);
-
+          if (id(show_battery_status).state) {
           // Indicateur batterie graphique
           int x_batt = it.get_width() - 45;
           int y_batt = 5;
@@ -1158,13 +1167,14 @@ display:
           char batt_text[6];
           snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
           // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
-
+          }
           id(draw_timer_timeline).execute();
           id(draw_active_timer_widget).execute();
       - id: listening_page
         lambda: |-
           it.fill(id(listening_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_listening), ImageAlign::CENTER);
+          if (id(show_battery_status).state) {
           // --- Batterie graphique haut droit ---
           int x_batt = it.get_width() - 45;
           int y_batt = 5;
@@ -1181,12 +1191,13 @@ display:
           char batt_text[6];
           snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
           // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
-          
+          }
           id(draw_timer_timeline).execute();
       - id: thinking_page
         lambda: |-
           it.fill(id(thinking_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_thinking), ImageAlign::CENTER);
+          if (id(show_battery_status).state) {
           // --- Batterie graphique haut droit ---
           int x_batt = it.get_width() - 45;
           int y_batt = 5;
@@ -1203,7 +1214,7 @@ display:
           char batt_text[6];
           snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
           // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
-          
+          }
           if (id(show_text).state) {
             it.filled_rectangle(20 , 20 , 200 , 30 , Color::WHITE );
             it.rectangle(20 , 20 , 200 , 30 , Color::BLACK );
@@ -1214,6 +1225,7 @@ display:
         lambda: |-
           it.fill(id(replying_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_replying), ImageAlign::CENTER);
+          if (id(show_battery_status).state) {
           // --- Batterie graphique haut droit ---
           int x_batt = it.get_width() - 45;
           int y_batt = 5;
@@ -1230,6 +1242,7 @@ display:
           char batt_text[6];
           snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
           // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
+          }
           int y_offset = 190; // default for 240px display
           if (it.get_height() == 320) {
             y_offset = 270; // Move box lower for 320px tall screens
@@ -1262,6 +1275,7 @@ display:
         lambda: |-
           it.fill(Color::BLACK);
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_muted), ImageAlign::CENTER);
+          if (id(show_battery_status).state) {
           // --- Batterie graphique haut droit ---
           int x_batt = it.get_width() - 45;
           int y_batt = 5;
@@ -1278,6 +1292,6 @@ display:
           char batt_text[6];
           snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
           // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
-          
+          }
           id(draw_timer_timeline).execute();
           id(draw_active_timer_widget).execute();
