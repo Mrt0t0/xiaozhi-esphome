@@ -2,8 +2,10 @@ substitutions:
   name: esphome-web-cd77b8
   friendly_name: "Xiao"
 
-## Mrtoto : Add sleep screen mode 5min auto
-## Mrtoto : Add led Action light script + Add Home assistant + Chouchou microwakeword + Reduce battery update rate
+## Mrtoto v1.10 : Battery indicator phone style top right corner
+## Mrtoto v1.09 : Add sleep mode 5min
+## Mrtoto v1.08 : Add led Action light script + Add Home assistant + Chouchou microwakeword + Reduce battery update rate
+## Original work from RealDeco : https://github.com/RealDeco/xiaozhi-esphome
 ## v1.07 26-jul-2025 #############################################################################################################################
 ## changed how to play startup sound to avoid double triggering
 ## v1.06 19-jul-2025 #############################################################################################################################
@@ -152,13 +154,6 @@ logger:
 wifi:
   ssid: !wifiname
   password: !wifipassword
-  ap:
-    ssid: "Xiao"
-    password: "marcel123"
-  on_connect:
-    - script.execute: draw_display
-  on_disconnect:
-    - script.execute: draw_display
 
 captive_portal:
 
@@ -172,7 +167,7 @@ sensor:
     pin: GPIO${battery_adc_pin}
     name: "Battery Voltage"
     id: battery_voltage
-    attenuation: 12db
+    attenuation: auto
     accuracy_decimals: 2
     update_interval: 10s
     unit_of_measurement: "V"
@@ -394,7 +389,7 @@ speaker:
     bits_per_sample: 16bit
     channel: left
     audio_dac: es8311_dac
-    buffer_duration: 100ms
+    buffer_duration: 200ms
 
 media_player:
   - platform: speaker
@@ -1146,26 +1141,69 @@ display:
         lambda: |-
           it.fill(id(idle_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_idle), ImageAlign::CENTER);
-          if (id(show_battery_status).state) {
-            const int box_top = 2;
-            const int box_height = 28;
-            it.filled_rectangle((it.get_width()/2)-40, box_top, 80, box_height, Color::WHITE);
-            it.rectangle((it.get_width()/2)-40, box_top, 80, box_height, Color::BLACK);
-            char battery_text[16];
-            snprintf(battery_text, sizeof(battery_text), "%.0f%%", id(battery_percentage).state);
-            it.printf(it.get_width() / 2, 4, id(font_battery), Color::BLACK, TextAlign::TOP_CENTER, "%s", battery_text);
-          }
+
+          // Indicateur batterie graphique
+          int x_batt = it.get_width() - 45;
+          int y_batt = 5;
+          int w_batt = 30;
+          int h_batt = 12;
+          it.filled_rectangle(x_batt - 2, y_batt - 2, w_batt + 14, h_batt + 4, Color::BLACK);
+          int percent = (int)id(battery_percentage).state;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+          it.rectangle(x_batt, y_batt, w_batt, h_batt, Color::WHITE);
+          int fill = (percent * (w_batt - 4)) / 100;
+          it.filled_rectangle(x_batt + 2, y_batt + 2, fill, h_batt - 4, Color::WHITE);
+          it.filled_rectangle(x_batt + w_batt, y_batt + h_batt / 3, 4, h_batt / 3, Color::WHITE);
+          char batt_text[6];
+          snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
+          // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
+
           id(draw_timer_timeline).execute();
           id(draw_active_timer_widget).execute();
       - id: listening_page
         lambda: |-
           it.fill(id(listening_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_listening), ImageAlign::CENTER);
+          // --- Batterie graphique haut droit ---
+          int x_batt = it.get_width() - 45;
+          int y_batt = 5;
+          int w_batt = 30;
+          int h_batt = 12;
+          it.filled_rectangle(x_batt - 2, y_batt - 2, w_batt + 14, h_batt + 4, Color::BLACK);
+          int percent = (int)id(battery_percentage).state;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+          it.rectangle(x_batt, y_batt, w_batt, h_batt, Color::WHITE);
+          int fill = (percent * (w_batt - 4)) / 100;
+          it.filled_rectangle(x_batt + 2, y_batt + 2, fill, h_batt - 4, Color::WHITE);
+          it.filled_rectangle(x_batt + w_batt, y_batt + h_batt / 3, 4, h_batt / 3, Color::WHITE);
+          char batt_text[6];
+          snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
+          // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
+          
           id(draw_timer_timeline).execute();
       - id: thinking_page
         lambda: |-
           it.fill(id(thinking_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_thinking), ImageAlign::CENTER);
+          // --- Batterie graphique haut droit ---
+          int x_batt = it.get_width() - 45;
+          int y_batt = 5;
+          int w_batt = 30;
+          int h_batt = 12;
+          it.filled_rectangle(x_batt - 2, y_batt - 2, w_batt + 14, h_batt + 4, Color::BLACK);
+          int percent = (int)id(battery_percentage).state;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+          it.rectangle(x_batt, y_batt, w_batt, h_batt, Color::WHITE);
+          int fill = (percent * (w_batt - 4)) / 100;
+          it.filled_rectangle(x_batt + 2, y_batt + 2, fill, h_batt - 4, Color::WHITE);
+          it.filled_rectangle(x_batt + w_batt, y_batt + h_batt / 3, 4, h_batt / 3, Color::WHITE);
+          char batt_text[6];
+          snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
+          // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
+          
           if (id(show_text).state) {
             it.filled_rectangle(20 , 20 , 200 , 30 , Color::WHITE );
             it.rectangle(20 , 20 , 200 , 30 , Color::BLACK );
@@ -1176,6 +1214,22 @@ display:
         lambda: |-
           it.fill(id(replying_color));
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_replying), ImageAlign::CENTER);
+          // --- Batterie graphique haut droit ---
+          int x_batt = it.get_width() - 45;
+          int y_batt = 5;
+          int w_batt = 30;
+          int h_batt = 12;
+          it.filled_rectangle(x_batt - 2, y_batt - 2, w_batt + 14, h_batt + 4, Color::BLACK);
+          int percent = (int)id(battery_percentage).state;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+          it.rectangle(x_batt, y_batt, w_batt, h_batt, Color::WHITE);
+          int fill = (percent * (w_batt - 4)) / 100;
+          it.filled_rectangle(x_batt + 2, y_batt + 2, fill, h_batt - 4, Color::WHITE);
+          it.filled_rectangle(x_batt + w_batt, y_batt + h_batt / 3, 4, h_batt / 3, Color::WHITE);
+          char batt_text[6];
+          snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
+          // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
           int y_offset = 190; // default for 240px display
           if (it.get_height() == 320) {
             y_offset = 270; // Move box lower for 320px tall screens
@@ -1208,5 +1262,22 @@ display:
         lambda: |-
           it.fill(Color::BLACK);
           it.image((it.get_width() / 2), (it.get_height() / 2), id(casita_muted), ImageAlign::CENTER);
+          // --- Batterie graphique haut droit ---
+          int x_batt = it.get_width() - 45;
+          int y_batt = 5;
+          int w_batt = 30;
+          int h_batt = 12;
+          it.filled_rectangle(x_batt - 2, y_batt - 2, w_batt + 14, h_batt + 4, Color::BLACK);
+          int percent = (int)id(battery_percentage).state;
+          if (percent < 0) percent = 0;
+          if (percent > 100) percent = 100;
+          it.rectangle(x_batt, y_batt, w_batt, h_batt, Color::WHITE);
+          int fill = (percent * (w_batt - 4)) / 100;
+          it.filled_rectangle(x_batt + 2, y_batt + 2, fill, h_batt - 4, Color::WHITE);
+          it.filled_rectangle(x_batt + w_batt, y_batt + h_batt / 3, 4, h_batt / 3, Color::WHITE);
+          char batt_text[6];
+          snprintf(batt_text, sizeof(batt_text), "%d%%", percent);
+          // it.printf(x_batt + w_batt + 10, y_batt + 1, id(font_battery), Color::WHITE, TextAlign::TOP_LEFT, "%s", batt_text);
+          
           id(draw_timer_timeline).execute();
           id(draw_active_timer_widget).execute();
